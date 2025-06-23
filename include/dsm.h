@@ -88,6 +88,7 @@ struct Env
     float episode_return;
 
     unsigned char* grid;
+    unsigned char* height_map;
     Agent* agents;
     unsigned char* observations;
     unsigned int* actions;
@@ -115,6 +116,7 @@ Env* init_grid(
     env->obs_size = 2*vision + 1;
 
     env->grid = (unsigned char*)calloc(width*height, sizeof(unsigned char));
+    env->height_map = (unsigned char*)calloc(width*height, sizeof(unsigned char));
     env->agents = (Agent*)calloc(num_agents, sizeof(Agent));
     env->observations = observations;
     env->actions = actions;
@@ -146,6 +148,7 @@ Env* allocate_grid(
 void free_env(Env* env)
 {
     free(env->grid);
+    free(env->height_map);
     free(env->agents);
     free(env);
 }
@@ -163,7 +166,7 @@ void free_allocated_grid(Env* env)
 }
 
 /**
- * TODO: label
+ * Maps a 2d location to 1d array
  */
 int grid_offset(Env* env, int y, int x)
 {
@@ -214,41 +217,50 @@ void reset(Env* env, int seed)
     int right = env->width - env->vision - 1;
     int bottom = env->height - env->vision - 1;
 
-    // TODO: What
-    for (int r = 0; r < left; r++)
-    {
-        for (int c = 0; c < env->width; c++)
-        {
-            int adr = grid_offset(env, r, c);
-            env->grid[adr] = WALL;
-        }
-    }
+    // // TODO: What
+    // for (int r = 0; r < left; r++)
+    // {
+    //     for (int c = 0; c < env->width; c++)
+    //     {
+    //         int adr = grid_offset(env, r, c);
+    //         env->grid[adr] = WALL;
+    //     }
+    // }
 
-    // TODO: What
+    // // TODO: What
+    // for (int r = 0; r < env->height; r++)
+    // {
+    //     for (int c = 0; c < left; c++)
+    //     {
+    //         int adr = grid_offset(env, r, c);
+    //         env->grid[adr] = WALL;
+    //     }
+    // }
+
+    // // TODO: What
+    // for (int c = right; c < env->width; c++)
+    // {
+    //     for (int r = 0; r < env->height; r++)
+    //     {
+    //         env->grid[grid_offset(env, r, c)] = WALL;
+    //     }
+    // }
+
+    // // TODO: What
+    // for (int r = bottom; r < env->height; r++)
+    // {
+    //     for (int c = 0; c < env->width; c++)
+    //     {
+    //         env->grid[grid_offset(env, r, c)] = WALL;
+    //     }
+    // }
+
     for (int r = 0; r < env->height; r++)
     {
-        for (int c = 0; c < left; c++)
-        {
-            int adr = grid_offset(env, r, c);
-            env->grid[adr] = WALL;
-        }
-    }
-
-    // TODO: What
-    for (int c = right; c < env->width; c++)
-    {
-        for (int r = 0; r < env->height; r++)
-        {
-            env->grid[grid_offset(env, r, c)] = WALL;
-        }
-    }
-
-    // TODO: What
-    for (int r = bottom; r < env->height; r++)
-    {
         for (int c = 0; c < env->width; c++)
         {
-            env->grid[grid_offset(env, r, c)] = WALL;
+            int adr = grid_offset(env, r, c);
+            env->height_map[adr] = 255 * sinf(0.2*c);
         }
     }
 
@@ -257,13 +269,13 @@ void reset(Env* env, int seed)
     {
         Agent* agent = &env->agents[i];
         int adr = grid_offset(env, agent->spawn_y, agent->spawn_x);
-        assert(env->grid[adr] == EMPTY);
-        assert(is_agent(agent->color));
+        // assert(env->grid[adr] == EMPTY);
+        // assert(is_agent(agent->color));
         agent->y = agent->spawn_y;
         agent->x = agent->spawn_x;
         agent->blade_width = 20;
         agent->blade_thick = 2;
-        env->grid[adr] = agent->color;
+        // env->grid[adr] = agent->color;
         agent->theta = 0;
     }
     compute_observations(env);
@@ -491,16 +503,10 @@ void render_global(Renderer* renderer, Env* env) {
         for (int c = 0; c < env->width; c++)
         {
             int adr = grid_offset(env, r, c);
-            int tile = env->grid[adr];
-            if (tile == EMPTY)
-            {
-                continue;
-            }
-            
-            else if (tile == WALL)
-            {
-                DrawRectangle(c*ts, r*ts, ts, ts, (Color){128, 128, 128, 255});
-            }
+            int height = env->height_map[adr];
+
+            DrawRectangle(c*ts, r*ts, ts, ts, (Color){255-height, 0, 0, 255});
+
         }
     }
 
