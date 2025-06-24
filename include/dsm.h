@@ -53,6 +53,8 @@ struct Agent
     float theta_dot;
     float blade_pos;
 
+    float avg_height;
+
     float blade_width;
     float blade_thick;
 
@@ -73,27 +75,13 @@ struct Env
 
     int width;
     int height;
-
     int num_agents;  // potential for multi-agent stuff
     int horizon;
-    
-    int vision;  // FoW type-deal, mirroring the actual gridmap / camera
-    
-    // float speed;
-    // bool discretize;
-    
-    int obs_size;
-
-    int tick;
-    float episode_return;
 
     unsigned char* grid;
     unsigned char* height_map;
     Agent* agents;
-    unsigned char* observations;
-    unsigned int* actions;
-    float* rewards;
-    float* dones;
+    int action;
 };
 
 /**
@@ -110,18 +98,10 @@ Env* init_grid(
     env->height = height;
     env->num_agents = num_agents;
     env->horizon = horizon;
-    env->vision = vision;
-    // env->speed = speed;
-    // env->discretize = discretize;  // TODO: label
-    env->obs_size = 2*vision + 1;
 
     env->grid = (unsigned char*)calloc(width*height, sizeof(unsigned char));
     env->height_map = (unsigned char*)calloc(width*height, sizeof(unsigned char));
     env->agents = (Agent*)calloc(num_agents, sizeof(Agent));
-    env->observations = observations;
-    env->actions = actions;
-    env->rewards = rewards;
-    env->dones = dones;  // TODO: label
     return env;
 }
 
@@ -158,10 +138,6 @@ void free_env(Env* env)
  */
 void free_allocated_grid(Env* env)
 {
-    free(env->observations);
-    free(env->actions);
-    free(env->rewards);
-    free(env->dones);
     free_env(env);
 }
 
@@ -174,93 +150,17 @@ int grid_offset(Env* env, int y, int x)
 }
 
 /**
- * get observations
- */
-void compute_observations(Env* env) {
-    for (int agent_idx = 0; agent_idx < env->num_agents; agent_idx++)
-    {
-        Agent* agent = &env->agents[agent_idx];
-        float y = agent->y;
-        float x = agent->x;
-        int r = y;  // cast to int
-        int c = x;
-
-        int obs_offset = agent_idx*env->obs_size*env->obs_size;
-        for (int dr = -env->vision; dr <= env->vision; dr++)
-        {
-            for (int dc = -env->vision; dc <= env->vision; dc++)
-            {
-                int rr = r + dr;
-                int cc = c + dc;
-                int adr = grid_offset(env, rr, cc);
-                env->observations[obs_offset] = env->grid[adr];
-                obs_offset++;
-            }
-        }
-    }
-}
-
-/**
  * Reset env
  */
 void reset(Env* env, int seed)
 {
-    env->tick = 0;
-    env->episode_return = 0;
-
-    // Add borders
-    // int left = env->speed * env->vision;
-    // int right = env->width - env->speed*env->vision - 1;
-    // int bottom = env->height - env->speed*env->vision - 1;
-
-    int left = env->vision;
-    int right = env->width - env->vision - 1;
-    int bottom = env->height - env->vision - 1;
-
-    // // TODO: What
-    // for (int r = 0; r < left; r++)
-    // {
-    //     for (int c = 0; c < env->width; c++)
-    //     {
-    //         int adr = grid_offset(env, r, c);
-    //         env->grid[adr] = WALL;
-    //     }
-    // }
-
-    // // TODO: What
-    // for (int r = 0; r < env->height; r++)
-    // {
-    //     for (int c = 0; c < left; c++)
-    //     {
-    //         int adr = grid_offset(env, r, c);
-    //         env->grid[adr] = WALL;
-    //     }
-    // }
-
-    // // TODO: What
-    // for (int c = right; c < env->width; c++)
-    // {
-    //     for (int r = 0; r < env->height; r++)
-    //     {
-    //         env->grid[grid_offset(env, r, c)] = WALL;
-    //     }
-    // }
-
-    // // TODO: What
-    // for (int r = bottom; r < env->height; r++)
-    // {
-    //     for (int c = 0; c < env->width; c++)
-    //     {
-    //         env->grid[grid_offset(env, r, c)] = WALL;
-    //     }
-    // }
-
     for (int r = 0; r < env->height; r++)
     {
         for (int c = 0; c < env->width; c++)
         {
+            // sinusoidal
             int adr = grid_offset(env, r, c);
-            env->height_map[adr] = 255 * sinf(0.2*c);
+            env->height_map[adr] = 127 * sinf(0.2*c) + 127;
         }
     }
 
@@ -278,23 +178,69 @@ void reset(Env* env, int seed)
         // env->grid[adr] = agent->color;
         agent->theta = 0;
     }
-    compute_observations(env);
 }
 
 /**
  * Plane fitting thing
  */
-void calculate_neighborhood_height()
+void calculate_neighborhood_height(Env* env)
 {
     // this should just calculate the best-fit plane. 
     // In this case, can't we just do average height?
     // Anyway, used to set relative blade height
+    float x = env->agents[0].x;
+    float y = env->agents[0].y;
+
+    int neighborhood_len = 75;
+    int neighborhood_width = 15;
+
+    int top_left_x = x + neighborhood_width;
+    int top_left_y = y + neighborhood_len;
+
+    int sum = 0;
+    int count = 0;
+
+    for (int x_n = -7; x_n < 8; x_n++)
+    {
+        for (int y_n = -37; y_n < 38; y_n++)
+        {
+            // float x_rot = (x + x_n) * cosf(env->agents[0].theta) - (y + y_n) * sinf(env->agents[0].theta);
+            // float y_rot = (x + x_n) * sinf(env->agents[0].theta) + (y + y_n) * cosf(env->agents[0].theta);
+            // sum += env->height_map[grid_offset(env, y_rot, x_rot)];
+
+            sum += env->height_map[grid_offset(env, y + y_n, x + x_n)];
+            count += 1;
+        }
+    }
+
+    env->agents[0].avg_height = sum / count;
+    // printf("Avg height: %f\n", env->agents[0].avg_height);
+}
+
+void blade_interaction(Env* env)
+{
+    Agent* agent = &env->agents[0];
+
+    float true_blade_height = agent->avg_height + agent->blade_pos;
+
+    int x = agent->x;
+    int y = agent->y;
+
+    int height = env->height_map[grid_offset(env, y, x)];
+
+    if (true_blade_height <= height)
+    {
+        env->height_map[grid_offset(env, y, x)] = true_blade_height;
+        // printf("HIT! Shaved off %f\n", height - true_blade_height);
+        printf("Blade interaction!\n\tLocation:\t(%i, %i) \n\tWith height:\t%i \n\tBlade height:\t%f \n\tAvg height:\t%f\n", x, y, height, true_blade_height, agent->avg_height);
+    }
 }
 
 /**
  * Iterate!
  */
-bool step(Env* env) {
+bool step(Env* env)
+{
     // TODO: Handle discrete vs continuous
     /*
     if self.discretize:
@@ -306,15 +252,16 @@ bool step(Env* env) {
     for (int agent_idx = 0; agent_idx < env->num_agents; agent_idx++)
     {
         // Discrete case only
-        int atn = env->actions[agent_idx];
+        // int atn = env->actions[agent_idx];
+        int action = env->action;
         float vel = 0;
 
-        if (atn == PASS)
+        if (action == PASS)
         {
             continue;
         }
         
-        else if (atn == SPEED_UP)
+        else if (action == SPEED_UP)
         {
             Agent* agent = &env->agents[agent_idx];
             agent->vel += 1;
@@ -325,7 +272,7 @@ bool step(Env* env) {
             }
         }
         
-        else if (atn == SPEED_DOWN)
+        else if (action == SPEED_DOWN)
         {
             Agent* agent = &env->agents[agent_idx];
             agent->vel -= 1;
@@ -336,7 +283,7 @@ bool step(Env* env) {
             }
         }
         
-        else if (atn == LEFT)
+        else if (action == LEFT)
         {
             Agent* agent = &env->agents[agent_idx];
             agent->theta_dot += 0.1;
@@ -346,7 +293,7 @@ bool step(Env* env) {
             }
         }
 
-        else if (atn == RIGHT)
+        else if (action == RIGHT)
         {
             Agent* agent = &env->agents[agent_idx];
             agent->theta_dot -= 0.1;
@@ -357,7 +304,7 @@ bool step(Env* env) {
             }
         }
 
-        else if (atn == BLADE_UP)
+        else if (action == BLADE_UP)
         {
             Agent* agent = &env->agents[agent_idx];
             agent->blade_pos += 1;
@@ -368,7 +315,7 @@ bool step(Env* env) {
             }
         }
 
-        else if (atn == BLADE_DOWN)
+        else if (action == BLADE_DOWN)
         {
             Agent* agent = &env->agents[agent_idx];
             agent->blade_pos -= 1;
@@ -382,7 +329,7 @@ bool step(Env* env) {
 
         else
         {
-            printf("Invalid action: %i\n", atn);
+            printf("Invalid action: %i\n", action);
             exit(1);
         }
 
@@ -411,31 +358,13 @@ bool step(Env* env) {
         agent->y = dest_y;
         agent->x = dest_x;
 
+        calculate_neighborhood_height(env);
+        blade_interaction(env);
+
         int adr = grid_offset(env, y, x);
         int dest_adr = grid_offset(env, dest_y, dest_x);
         int dest_tile = env->grid[dest_adr];
 
-        // REWARDS!
-        if (dest_tile == REWARD || dest_tile == GOAL)
-        {
-            env->grid[dest_adr] = EMPTY;
-            env->rewards[agent_idx] = 1.0;
-            env->episode_return += 1.0;
-            dest_tile = EMPTY;
-            done = true;
-        }
-
-        if (dest_tile == EMPTY)
-        {
-            env->grid[adr] = EMPTY;
-            env->grid[dest_adr] = agent->color;
-        }
-    }
-    compute_observations(env);
-
-    env->tick += 1;
-    if (env->tick >= env->horizon) {
-        done = true;
     }
 
     return done;
@@ -505,7 +434,7 @@ void render_global(Renderer* renderer, Env* env) {
             int adr = grid_offset(env, r, c);
             int height = env->height_map[adr];
 
-            DrawRectangle(c*ts, r*ts, ts, ts, (Color){255-height, 0, 0, 255});
+            DrawRectangle(c*ts, r*ts, ts, ts, (Color){255-height, 255-height, 255-height, 255});
 
         }
     }
@@ -573,11 +502,4 @@ void reset_room(Env* env) {
         }
     }
     reset(env, 0);
-
-    int vision = 3;
-    int adr = grid_offset(env, 7+vision, 9+vision);
-    //env->grid[adr] = GOAL;
-
-    adr = grid_offset(env, 16+vision, 17+vision);
-    env->grid[adr] = GOAL;
 }
