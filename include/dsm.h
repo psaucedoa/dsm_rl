@@ -57,6 +57,7 @@ struct Agent
 
     float blade_width;
     float blade_thick;
+    int blade_fore;
 
     float spawn_y;
     float spawn_x;
@@ -77,6 +78,8 @@ struct Env
     int height;
     int num_agents;  // potential for multi-agent stuff
     int horizon;
+
+    int cell_size;
 
     unsigned char* grid;
     unsigned char* height_map;
@@ -145,8 +148,15 @@ void free_allocated_grid(Env* env)
  * Maps a 2d location to 1d array
  */
 int grid_offset(Env* env, int y, int x)
-{
+{    
     return y*env->width + x;
+}
+
+int heightgrid_offset(Env* env, int y, int x)
+{
+    int y_scaled = y / env->cell_size;
+    int x_scaled = x / env->cell_size;
+    return y_scaled*env->width + x_scaled;
 }
 
 /**
@@ -154,13 +164,14 @@ int grid_offset(Env* env, int y, int x)
  */
 void reset(Env* env, int seed)
 {
-    for (int r = 0; r < env->height; r++)
+    for (int r = 100; r < env->height - 100; r++)
     {
-        for (int c = 0; c < env->width; c++)
+        for (int c = 100; c < env->width - 100; c++)
         {
             // sinusoidal
             int adr = grid_offset(env, r, c);
-            env->height_map[adr] = 127 * sinf(0.2*c) + 127;
+            // env->height_map[adr] = 127 * sinf(0.07*c - 200) + 127;
+            env->height_map[adr] = 127;
         }
     }
 
@@ -175,6 +186,7 @@ void reset(Env* env, int seed)
         agent->x = agent->spawn_x;
         agent->blade_width = 20;
         agent->blade_thick = 2;
+        agent->blade_fore = 20;
         // env->grid[adr] = agent->color;
         agent->theta = 0;
     }
@@ -191,8 +203,8 @@ void calculate_neighborhood_height(Env* env)
     float x = env->agents[0].x;
     float y = env->agents[0].y;
 
-    int neighborhood_len = 75;
-    int neighborhood_width = 15;
+    int neighborhood_len = 200;
+    int neighborhood_width = 100;
 
     int top_left_x = x + neighborhood_width;
     int top_left_y = y + neighborhood_len;
@@ -200,39 +212,46 @@ void calculate_neighborhood_height(Env* env)
     int sum = 0;
     int count = 0;
 
-    for (int x_n = -7; x_n < 8; x_n++)
+    for (int x_n = 0; x_n < neighborhood_width; x_n++)
     {
-        for (int y_n = -37; y_n < 38; y_n++)
+        for (int y_n = 0; y_n < neighborhood_len; y_n++)
         {
             // float x_rot = (x + x_n) * cosf(env->agents[0].theta) - (y + y_n) * sinf(env->agents[0].theta);
             // float y_rot = (x + x_n) * sinf(env->agents[0].theta) + (y + y_n) * cosf(env->agents[0].theta);
             // sum += env->height_map[grid_offset(env, y_rot, x_rot)];
+            int delta_y = -neighborhood_len / 2;
+            int delta_x = -neighborhood_width / 2;
 
-            sum += env->height_map[grid_offset(env, y + y_n, x + x_n)];
+            sum += env->height_map[grid_offset(env, y + delta_y, x + delta_x)];
             count += 1;
         }
     }
 
-    env->agents[0].avg_height = sum / count;
+    // env->agents[0].avg_height = sum / count;
+    env->agents[0].avg_height = 10;
     // printf("Avg height: %f\n", env->agents[0].avg_height);
 }
 
 void blade_interaction(Env* env)
 {
     Agent* agent = &env->agents[0];
-
     float true_blade_height = agent->avg_height + agent->blade_pos;
 
-    int x = agent->x;
-    int y = agent->y;
-
-    int height = env->height_map[grid_offset(env, y, x)];
-
-    if (true_blade_height <= height)
+    for (int x_n = 0; x_n < agent->blade_width; x_n++)
     {
-        env->height_map[grid_offset(env, y, x)] = true_blade_height;
-        // printf("HIT! Shaved off %f\n", height - true_blade_height);
-        printf("Blade interaction!\n\tLocation:\t(%i, %i) \n\tWith height:\t%i \n\tBlade height:\t%f \n\tAvg height:\t%f\n", x, y, height, true_blade_height, agent->avg_height);
+        int x = agent->x + agent->blade_fore * sinf(1*agent->theta) + (x_n - agent->blade_width / 2) * cosf(1*agent->theta);
+        int y_1 = agent->y + agent->blade_fore * cosf(1*agent->theta) - (x_n - agent->blade_width / 2) * sinf(1*agent->theta);
+        int y_2 = agent->y - 1 + agent->blade_fore * cosf(1*agent->theta) - (x_n - agent->blade_width / 2) * sinf(1*agent->theta);
+
+        int height = env->height_map[grid_offset(env, y_1, x)];
+
+        if (true_blade_height <= height)
+        {
+            env->height_map[heightgrid_offset(env, y_1, x)] = true_blade_height;
+            env->height_map[heightgrid_offset(env, y_2, x)] = true_blade_height;
+        }
+    // printf("HIT! Shaved off %f\n", height - true_blade_height);
+    printf("Blade interaction!\n\tLocation:\t(%i, %i) \n\tWith height:\t%i \n\tBlade height:\t%f \n\tAvg height:\t%f\n", x, y_1, height, true_blade_height, agent->avg_height);
     }
 }
 
@@ -307,18 +326,18 @@ bool step(Env* env)
         else if (action == BLADE_UP)
         {
             Agent* agent = &env->agents[agent_idx];
-            agent->blade_pos += 1;
+            agent->blade_pos += 5;
 
-            if (agent->blade_pos > 10)
+            if (agent->blade_pos > 50)
             {
-                agent->blade_pos = 10;
+                agent->blade_pos = 50;
             }
         }
 
         else if (action == BLADE_DOWN)
         {
             Agent* agent = &env->agents[agent_idx];
-            agent->blade_pos -= 1;
+            agent->blade_pos -= 5;
 
             if (agent->blade_pos < 0)
             {
@@ -434,7 +453,7 @@ void render_global(Renderer* renderer, Env* env) {
             int adr = grid_offset(env, r, c);
             int height = env->height_map[adr];
 
-            DrawRectangle(c*ts, r*ts, ts, ts, (Color){255-height, 255-height, 255-height, 255});
+            DrawRectangle(c*ts, r*ts, ts, ts, (Color){height, height, height, 255});
 
         }
     }
@@ -452,7 +471,7 @@ void render_global(Renderer* renderer, Env* env) {
     // DrawRectangle(agent->x, agent->y, agent->blade_width, agent->blade_thick, (Color){255, 255, 255, 255});
     DrawRectanglePro(
         blade,
-        (Vector2){10, -20},
+        (Vector2){10, -1*agent->blade_fore},
         -1*deg,
         YELLOW
     );
@@ -476,8 +495,8 @@ void render_global(Renderer* renderer, Env* env) {
 
 Env* alloc_room_env()
 {
-    int width = 101;
-    int height = 101;
+    int width = 800;
+    int height = 800;
     int num_agents = 1;
     int horizon = 512;
     float agent_speed = 1;
@@ -486,7 +505,8 @@ Env* alloc_room_env()
 
     Env* env = allocate_grid(width+2*vision, height+2*vision, num_agents, horizon,
             vision, agent_speed, discretize);
-
+    
+    env->cell_size = 1;
     env->agents[0].spawn_y = 150;
     env->agents[0].spawn_x = 150;
     env->agents[0].color = AGENT_1;

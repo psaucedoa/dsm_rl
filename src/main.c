@@ -11,15 +11,15 @@ unsigned int actions[36] = {
 
 
 int main() {
-    int width = 150;
-    int height = 150;
+    int width = 800;
+    int height = 800;
     int num_agents = 1;
     int horizon = 1024;
     float agent_speed = 1;
     int vision = 5;
     bool discretize = true;
 
-    int render_cell_size = 4;
+    int render_cell_size = 1;
     int seed = 42;
 
     Env* env = alloc_room_env();
