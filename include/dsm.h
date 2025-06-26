@@ -43,6 +43,15 @@ int is_agent(int tile) {
     return tile >= AGENT_1 && tile <= AGENT_8;
 }
 
+Vector2 rotate(Vector2 vector, float theta)
+{
+    Vector2 rotated = {
+        vector.x * cosf(theta) - vector.y * sinf(theta),
+        vector.x * sinf(theta) + vector.y * cosf(theta)
+    };
+    return rotated;
+}
+
 typedef struct Agent Agent;
 struct Agent
 {
@@ -58,6 +67,9 @@ struct Agent
     float blade_width;
     float blade_thick;
     int blade_fore;
+
+    int accumulated_soil;
+    int max_soil;
 
     float spawn_y;
     float spawn_x;
@@ -170,8 +182,8 @@ void reset(Env* env, int seed)
         {
             // sinusoidal
             int adr = grid_offset(env, r, c);
-            // env->height_map[adr] = 127 * sinf(0.07*c - 200) + 127;
-            env->height_map[adr] = 127;
+            env->height_map[adr] = 127 * sinf(0.07*c - 200) + 127;
+            // env->height_map[adr] = 127;
         }
     }
 
@@ -187,6 +199,7 @@ void reset(Env* env, int seed)
         agent->blade_width = 20;
         agent->blade_thick = 2;
         agent->blade_fore = 20;
+        agent->max_soil = 10000;
         // env->grid[adr] = agent->color;
         agent->theta = 0;
     }
@@ -203,8 +216,8 @@ void calculate_neighborhood_height(Env* env)
     float x = env->agents[0].x;
     float y = env->agents[0].y;
 
-    int neighborhood_len = 200;
-    int neighborhood_width = 100;
+    int neighborhood_len = 300;
+    int neighborhood_width = 300;
 
     int top_left_x = x + neighborhood_width;
     int top_left_y = y + neighborhood_len;
@@ -222,13 +235,13 @@ void calculate_neighborhood_height(Env* env)
             int delta_y = -neighborhood_len / 2;
             int delta_x = -neighborhood_width / 2;
 
-            sum += env->height_map[grid_offset(env, y + delta_y, x + delta_x)];
+            sum += env->height_map[grid_offset(env, y + delta_y + y_n, x + delta_x + x_n)];
             count += 1;
         }
     }
 
-    // env->agents[0].avg_height = sum / count;
-    env->agents[0].avg_height = 10;
+    env->agents[0].avg_height = sum / count;
+    // env->agents[0].avg_height = 10;
     // printf("Avg height: %f\n", env->agents[0].avg_height);
 }
 
@@ -236,6 +249,7 @@ void blade_interaction(Env* env)
 {
     Agent* agent = &env->agents[0];
     float true_blade_height = agent->avg_height + agent->blade_pos;
+    int overflow;
 
     for (int x_n = 0; x_n < agent->blade_width; x_n++)
     {
@@ -247,12 +261,41 @@ void blade_interaction(Env* env)
 
         if (true_blade_height <= height)
         {
+            float height_diff = height - true_blade_height;
+
+            if (agent->accumulated_soil + height_diff > agent->max_soil)
+            {
+                overflow += agent->accumulated_soil + height_diff - agent->max_soil;
+                env->height_map[heightgrid_offset(env, y_1, x)] = true_blade_height;
+                env->height_map[heightgrid_offset(env, y_2, x)] = true_blade_height;
+
+            }
+
+            else
+            {
+                env->height_map[heightgrid_offset(env, y_1, x)] = true_blade_height;
+                env->height_map[heightgrid_offset(env, y_2, x)] = true_blade_height;
+                agent->accumulated_soil += height_diff;
+                // add logic for exceeding max blade fill
+            }
+        }
+        else if (true_blade_height > height && agent->accumulated_soil > 0)
+        {
             env->height_map[heightgrid_offset(env, y_1, x)] = true_blade_height;
             env->height_map[heightgrid_offset(env, y_2, x)] = true_blade_height;
+            agent->accumulated_soil -= true_blade_height - height;
+            // add logic for exceeding min blade fill
         }
-    // printf("HIT! Shaved off %f\n", height - true_blade_height);
-    printf("Blade interaction!\n\tLocation:\t(%i, %i) \n\tWith height:\t%i \n\tBlade height:\t%f \n\tAvg height:\t%f\n", x, y_1, height, true_blade_height, agent->avg_height);
+        // printf("HIT! Shaved off %f\n", height - true_blade_height);
+        printf("Blade interaction!\n\
+            \tLocation:\t(%i, %i) \n\
+            \tWith height:\t%i \n\
+            \tBlade height:\t%f \n\
+            \tAvg height:\t%f\n\
+            \tAcc soil:\t%i\n",
+            x, y_1, height, true_blade_height, agent->avg_height, agent->accumulated_soil);
     }
+
 }
 
 /**
