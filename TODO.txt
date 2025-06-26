@@ -1,0 +1,9 @@
+1. Rewrite stuff more nice now that it kinda works
+2. Add in friction
+    - Height of blade vs height of upcoming soil?
+    - Hiehgt of blade vs 'Amount of Soil' (sum of soil in front of blade?)
+3. Add tracking of absolute blade height
+4. Add delay in blade control
+    - When avg terrain height updates, delay update to absolute blade height
+    - When blade set height updates, delay update to absolute blade height
+    - Maybe just buffer the updates from ANY source?
