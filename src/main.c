@@ -1,29 +1,8 @@
-#include "dsm.h"
-
-unsigned int actions[36] = {
-    SPEED_UP, SPEED_UP, SPEED_UP, SPEED_UP, SPEED_UP, SPEED_UP,
-    SPEED_DOWN, SPEED_DOWN, SPEED_DOWN, SPEED_DOWN, SPEED_DOWN, SPEED_DOWN,
-    LEFT, LEFT, LEFT, LEFT, LEFT, LEFT,
-    RIGHT, RIGHT, RIGHT, RIGHT, RIGHT, RIGHT,
-    BLADE_UP, BLADE_UP, BLADE_UP, BLADE_UP, BLADE_UP, BLADE_UP, 
-    BLADE_DOWN, BLADE_DOWN, BLADE_DOWN, BLADE_DOWN, BLADE_DOWN, BLADE_DOWN
-};
-
+#include "fluid.h"
 
 int main() {
-    int width = 800;
-    int height = 800;
-    int num_agents = 1;
-    int horizon = 1024;
-    float agent_speed = 1;
-    int vision = 5;
-    bool discretize = true;
 
-    int render_cell_size = 1;
-    int seed = 42;
 
-    Env* env = alloc_room_env();
-    reset_room(env);
  
     Renderer* renderer = init_renderer(render_cell_size, width, height);
 
