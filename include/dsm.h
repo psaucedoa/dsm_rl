@@ -46,8 +46,8 @@ int is_agent(int tile) {
 Vector2 rotate(Vector2 vector, float theta)
 {
     Vector2 rotated = {
-        vector.x * cosf(theta) - vector.y * sinf(theta),
-        vector.x * sinf(theta) + vector.y * cosf(theta)
+        vector.x * cosf(theta) + vector.y * sinf(theta),
+        -1*vector.x * sinf(theta) + vector.y * cosf(theta)
     };
     return rotated;
 }
@@ -176,9 +176,9 @@ int heightgrid_offset(Env* env, int y, int x)
  */
 void reset(Env* env, int seed)
 {
-    for (int r = 100; r < env->height - 100; r++)
+    for (int r = 300; r < env->height - 300; r++)
     {
-        for (int c = 100; c < env->width - 100; c++)
+        for (int c = 300; c < env->width - 300; c++)
         {
             // sinusoidal
             int adr = grid_offset(env, r, c);
@@ -216,11 +216,10 @@ void calculate_neighborhood_height(Env* env)
     float x = env->agents[0].x;
     float y = env->agents[0].y;
 
-    int neighborhood_len = 300;
-    int neighborhood_width = 300;
+    int neighborhood_len = 100;
+    int neighborhood_width = 50;
 
-    int top_left_x = x + neighborhood_width;
-    int top_left_y = y + neighborhood_len;
+    Vector2 top_left = {x,y};
 
     int sum = 0;
     int count = 0;
@@ -229,13 +228,14 @@ void calculate_neighborhood_height(Env* env)
     {
         for (int y_n = 0; y_n < neighborhood_len; y_n++)
         {
-            // float x_rot = (x + x_n) * cosf(env->agents[0].theta) - (y + y_n) * sinf(env->agents[0].theta);
-            // float y_rot = (x + x_n) * sinf(env->agents[0].theta) + (y + y_n) * cosf(env->agents[0].theta);
-            // sum += env->height_map[grid_offset(env, y_rot, x_rot)];
-            int delta_y = -neighborhood_len / 2;
-            int delta_x = -neighborhood_width / 2;
+            Vector2 current_pixel = {x_n - neighborhood_width / 2, y_n - neighborhood_len / 2};
+            Vector2 current_pixel_rotated = rotate(current_pixel, env->agents[0].theta);
+            Vector2 current_coord = {top_left.x + current_pixel_rotated.x, top_left.y + current_pixel_rotated.y };
 
-            sum += env->height_map[grid_offset(env, y + delta_y + y_n, x + delta_x + x_n)];
+            sum += env->height_map[grid_offset(env, current_coord.y, current_coord.x)];
+
+            // env->height_map[heightgrid_offset(env, current_coord.y, current_coord.x)] = 255;
+
             count += 1;
         }
     }

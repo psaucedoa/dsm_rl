@@ -7,5 +7,4 @@
     - When avg terrain height updates, delay update to absolute blade height
     - When blade set height updates, delay update to absolute blade height
     - Maybe just buffer the updates from ANY source?
-
 5. Add in variable weight, randomized per soil
