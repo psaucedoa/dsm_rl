@@ -13,6 +13,7 @@
 #define RIGHT 4
 #define BLADE_UP 5
 #define BLADE_DOWN 6
+#define CONTINUE 7
 
 #define EMPTY 0
 #define WALL 1
@@ -188,7 +189,7 @@ void reset(Env* env, int seed)
             // sinusoidal
             int adr = grid_offset(env, r, c);
             // env->height_map[adr] = 127 * sinf(0.07*c - 200) + 127;
-            env->height_map[adr] = 127;
+            env->height_map[adr] = 50;
         }
     }
 
@@ -320,37 +321,30 @@ void blade_interaction(Env* env)
 
     for (int x_n = 0; x_n < agent->blade_width; x_n++)
     {
+        int direction = agent->vel / abs(agent->vel);
+
         int x = agent->x + agent->blade_fore * sinf(1*agent->theta) + (x_n - agent->blade_width / 2) * cosf(1*agent->theta);
         int y_1 = agent->y + agent->blade_fore * cosf(1*agent->theta) - (x_n - agent->blade_width / 2) * sinf(1*agent->theta);
-        int y_2 = agent->y - 1 + agent->blade_fore * cosf(1*agent->theta) - (x_n - agent->blade_width / 2) * sinf(1*agent->theta);
+        int y_2 = agent->y - (1*direction) + agent->blade_fore * cosf(1*agent->theta) - (x_n - agent->blade_width / 2) * sinf(1*agent->theta);
+        
 
-        int height = env->height_map[grid_offset(env, y_1, x)];
+        int y_0 = agent->y + (2 * direction) + agent->blade_fore * cosf(1*agent->theta) - (x_n - agent->blade_width / 2) * sinf(1*agent->theta);
 
-        if (true_blade_height <= height)
+
+        int height_1 = env->height_map[grid_offset(env, y_1, x)];
+        int height_2 = env->height_map[grid_offset(env, y_2, x)];
+        int next_pixel = env->height_map[grid_offset(env, y_0, x)];
+
+
+        if (true_blade_height <= height_1 || true_blade_height <= height_2)
         {
-            float height_diff = height - true_blade_height;
+            float height_diff_1 = height_1 - true_blade_height;
+            float height_diff_2 = height_2 - true_blade_height;
 
-            if (agent->accumulated_soil + height_diff > agent->max_soil)
-            {
-                overflow += agent->accumulated_soil + height_diff - agent->max_soil;
-                env->height_map[heightgrid_offset(env, y_1, x)] = true_blade_height;
-                env->height_map[heightgrid_offset(env, y_2, x)] = true_blade_height;
-            }
-
-            else
-            {
-                env->height_map[heightgrid_offset(env, y_1, x)] = true_blade_height;
-                env->height_map[heightgrid_offset(env, y_2, x)] = true_blade_height;
-                agent->accumulated_soil += height_diff;
-                // add logic for exceeding max blade fill
-            }
-        }
-        else if (true_blade_height > height && agent->accumulated_soil > 0)
-        {
+            env->height_map[heightgrid_offset(env, y_0, x)] += height_diff_1 + height_diff_2;
+            
             env->height_map[heightgrid_offset(env, y_1, x)] = true_blade_height;
             env->height_map[heightgrid_offset(env, y_2, x)] = true_blade_height;
-            agent->accumulated_soil -= true_blade_height - height;
-            // add logic for exceeding min blade fill
         }
         // printf("HIT! Shaved off %f\n", height - true_blade_height);
         printf("Blade interaction!\n\
@@ -359,7 +353,7 @@ void blade_interaction(Env* env)
             \tBlade height:\t%f \n\
             \tAvg height:\t%f\n\
             \tAcc soil:\t%i\n",
-            x, y_1, height, true_blade_height, agent->avg_height, agent->accumulated_soil);
+            x, y_1, height_1, true_blade_height, agent->avg_height, agent->accumulated_soil);
     }
 
 }
@@ -387,6 +381,10 @@ bool step(Env* env)
         if (action == PASS)
         {
             continue;
+        }
+        else if (action == CONTINUE)
+        {
+            // continue;
         }
 
         else if (action == SPEED_UP)
@@ -437,9 +435,9 @@ bool step(Env* env)
             Agent* agent = &env->agents[agent_idx];
             agent->blade_pos += 1;
 
-            if (agent->blade_pos > 10)
+            if (agent->blade_pos > 15)
             {
-                agent->blade_pos = 10;
+                agent->blade_pos = 15;
             }
         }
 
@@ -448,9 +446,9 @@ bool step(Env* env)
             Agent* agent = &env->agents[agent_idx];
             agent->blade_pos -= 1;
 
-            if (agent->blade_pos < -5)
+            if (agent->blade_pos < -10)
             {
-                agent->blade_pos = -5;
+                agent->blade_pos = -10;
             }
 
         }
@@ -564,7 +562,7 @@ void render_global(Renderer* renderer, Env* env) {
             int adr = grid_offset(env, r, c);
             int height = env->height_map[adr];
 
-            DrawRectangle(c*ts, r*ts, ts, ts, (Color){height, height, height, 255});
+            DrawRectangle(c*ts, r*ts, ts, ts, (Color){height*3, height*3, height*3, 255});
 
         }
     }

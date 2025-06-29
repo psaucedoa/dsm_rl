@@ -37,6 +37,9 @@ int main() {
         if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) env->action = RIGHT;
         if (IsKeyDown(KEY_Q)) env->action = BLADE_UP;
         if (IsKeyDown(KEY_E)) env->action = BLADE_DOWN;
+        if (IsKeyDown(KEY_SPACE)) env->action = CONTINUE;
+        if (IsKeyDown(KEY_R)) reset_room(env);
+
 
         bool done = step(env);
         if (done) {
