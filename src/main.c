@@ -11,8 +11,8 @@ unsigned int actions[36] = {
 
 
 int main() {
-    int width = 800;
-    int height = 800;
+    int width = 500;
+    int height = 500;
     int num_agents = 1;
     int horizon = 1024;
     float agent_speed = 1;

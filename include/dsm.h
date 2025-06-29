@@ -80,12 +80,6 @@ struct Agent
 typedef struct Env Env;
 struct Env
 {
-    // add in the 'fluid' properties here as well...
-    // float eq_reynolds;
-    // float eq_viscocity;
-    // float eq_temperature;
-    // etc
-
     int width;
     int height;
     int num_agents;  // potential for multi-agent stuff
@@ -93,8 +87,14 @@ struct Env
 
     int cell_size;
 
+    float meters_per_pixel;
+
     unsigned char* grid;
     unsigned char* height_map;
+    float* dx_l;
+    float* dx_r;
+    float* dy_u;
+    float* dy_d;
     Agent* agents;
     int action;
 };
@@ -116,6 +116,11 @@ Env* init_grid(
 
     env->grid = (unsigned char*)calloc(width*height, sizeof(unsigned char));
     env->height_map = (unsigned char*)calloc(width*height, sizeof(unsigned char));
+    env->dx_l = (float*)calloc(width*height, sizeof(float));
+    env->dx_r = (float*)calloc(width*height, sizeof(float));
+    env->dy_u = (float*)calloc(width*height, sizeof(float));
+    env->dy_d = (float*)calloc(width*height, sizeof(float));
+    env->meters_per_pixel = 0.1;
     env->agents = (Agent*)calloc(num_agents, sizeof(Agent));
     return env;
 }
@@ -176,14 +181,14 @@ int heightgrid_offset(Env* env, int y, int x)
  */
 void reset(Env* env, int seed)
 {
-    for (int r = 300; r < env->height - 300; r++)
+    for (int r = 0; r < env->height; r++)
     {
-        for (int c = 300; c < env->width - 300; c++)
+        for (int c = 0; c < env->width; c++)
         {
             // sinusoidal
             int adr = grid_offset(env, r, c);
-            env->height_map[adr] = 127 * sinf(0.07*c - 200) + 127;
-            // env->height_map[adr] = 127;
+            // env->height_map[adr] = 127 * sinf(0.07*c - 200) + 127;
+            env->height_map[adr] = 127;
         }
     }
 
@@ -202,6 +207,68 @@ void reset(Env* env, int seed)
         agent->max_soil = 10000;
         // env->grid[adr] = agent->color;
         agent->theta = 0;
+    }
+}
+
+void gradient(Env* env)
+{
+    for (int r = 1; r < env->height-1; r++)
+    {
+        for (int c = 1; c < env->width-1; c++)
+        {
+            int adr = grid_offset(env, r, c);
+            int adr_x_l = grid_offset(env, r, c-1);
+            int adr_x_r = grid_offset(env, r, c+1);
+            int adr_y_u = grid_offset(env, r-1, c);
+            int adr_y_d = grid_offset(env, r+1, c);
+
+            env->dx_l[adr] = (env->height_map[adr_x_l] - env->height_map[adr]);
+            env->dx_r[adr] = (env->height_map[adr_x_r] - env->height_map[adr]);
+            env->dy_u[adr] = (env->height_map[adr_y_u] - env->height_map[adr]);
+            env->dy_d[adr] = (env->height_map[adr_y_d] - env->height_map[adr]);
+        }
+    }
+}
+
+void erode(Env *env)
+{
+    for (int r = 1; r < env->height-2; r++)
+    {
+        for (int c = 1; c < env->width-2; c++)
+        {
+            int adr = grid_offset(env, r, c);
+            int adr_x_l = grid_offset(env, r, c-1);
+            int adr_x_r = grid_offset(env, r, c+1);
+            int adr_y_u = grid_offset(env, r-1, c);
+            int adr_y_d = grid_offset(env, r+1, c);
+
+
+            float dx_l = env->dx_l[adr];
+            float dx_r = env->dx_r[adr];
+            float dy_u = env->dy_u[adr];
+            float dy_d = env->dy_d[adr];
+
+            float grads[4] = {dx_l, dx_r, dy_u, dy_d};
+            int adrs[4] = {adr_x_l, adr_x_r, adr_y_u, adr_y_d};
+
+            int index = 0;
+            float min = 0;
+
+            for (int i = 0; i < 4; i++)
+            {
+                if (grads[i] < min)
+                {
+                    min = grads[i];
+                    index = i;
+                }
+            }
+
+            if (grads[index] < -5)
+            {
+                env->height_map[adr] += 0.2 * grads[index];
+                env->height_map[adrs[index]] -= 0.2 * grads[index];
+            }
+        }
     }
 }
 
@@ -268,7 +335,6 @@ void blade_interaction(Env* env)
                 overflow += agent->accumulated_soil + height_diff - agent->max_soil;
                 env->height_map[heightgrid_offset(env, y_1, x)] = true_blade_height;
                 env->height_map[heightgrid_offset(env, y_2, x)] = true_blade_height;
-
             }
 
             else
@@ -322,7 +388,7 @@ bool step(Env* env)
         {
             continue;
         }
-        
+
         else if (action == SPEED_UP)
         {
             Agent* agent = &env->agents[agent_idx];
@@ -369,22 +435,22 @@ bool step(Env* env)
         else if (action == BLADE_UP)
         {
             Agent* agent = &env->agents[agent_idx];
-            agent->blade_pos += 5;
+            agent->blade_pos += 1;
 
-            if (agent->blade_pos > 50)
+            if (agent->blade_pos > 10)
             {
-                agent->blade_pos = 50;
+                agent->blade_pos = 10;
             }
         }
 
         else if (action == BLADE_DOWN)
         {
             Agent* agent = &env->agents[agent_idx];
-            agent->blade_pos -= 5;
+            agent->blade_pos -= 1;
 
-            if (agent->blade_pos < 0)
+            if (agent->blade_pos < -5)
             {
-                agent->blade_pos = 0;
+                agent->blade_pos = -5;
             }
 
         }
@@ -427,6 +493,8 @@ bool step(Env* env)
         int dest_adr = grid_offset(env, dest_y, dest_x);
         int dest_tile = env->grid[dest_adr];
 
+        gradient(env);
+        erode(env);
     }
 
     return done;
@@ -470,7 +538,7 @@ Renderer* init_renderer(int cell_size, int width, int height) {
     renderer->height = height;
 
     InitWindow(width*cell_size, height*cell_size, "PufferLib Ray Grid");
-    SetTargetFPS(10);
+    SetTargetFPS(100);
 
     return renderer;
 }
@@ -538,8 +606,8 @@ void render_global(Renderer* renderer, Env* env) {
 
 Env* alloc_room_env()
 {
-    int width = 800;
-    int height = 800;
+    int width = 500;
+    int height = 500;
     int num_agents = 1;
     int horizon = 512;
     float agent_speed = 1;
