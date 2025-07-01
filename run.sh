@@ -1,4 +1,4 @@
-cd /home/arturo/dsm_rl/build/ && ./premake5 gmake2
+cd /home/${USER}/dsm_rl/build/ && ./premake5 gmake2
 cd ..
 make
 cd bin/Debug

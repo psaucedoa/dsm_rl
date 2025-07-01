@@ -189,7 +189,7 @@ void reset(Env* env, int seed)
             // sinusoidal
             int adr = grid_offset(env, r, c);
             // env->height_map[adr] = 127 * sinf(0.07*c - 200) + 127;
-            env->height_map[adr] = 50;
+            env->height_map[adr] = 20;
         }
     }
 
@@ -325,24 +325,26 @@ void blade_interaction(Env* env)
 
         int x = agent->x + agent->blade_fore * sinf(1*agent->theta) + (x_n - agent->blade_width / 2) * cosf(1*agent->theta);
         int y_1 = agent->y + agent->blade_fore * cosf(1*agent->theta) - (x_n - agent->blade_width / 2) * sinf(1*agent->theta);
-        int y_2 = agent->y - (1*direction) + agent->blade_fore * cosf(1*agent->theta) - (x_n - agent->blade_width / 2) * sinf(1*agent->theta);
-        
+        int y_2 = agent->y + (1*direction) + agent->blade_fore * cosf(1*agent->theta) - (x_n - agent->blade_width / 2) * sinf(1*agent->theta);
 
-        int y_0 = agent->y + (2 * direction) + agent->blade_fore * cosf(1*agent->theta) - (x_n - agent->blade_width / 2) * sinf(1*agent->theta);
+        int y_deposit_1 = agent->y + (2 * direction) + agent->blade_fore * cosf(1*agent->theta) - (x_n - agent->blade_width / 2) * sinf(1*agent->theta);
+        int y_deposit_2 = agent->y + (3 * direction) + agent->blade_fore * cosf(1*agent->theta) - (x_n - agent->blade_width / 2) * sinf(1*agent->theta);
+        int y_deposit_3 = agent->y + (4 * direction) + agent->blade_fore * cosf(1*agent->theta) - (x_n - agent->blade_width / 2) * sinf(1*agent->theta);
 
 
         int height_1 = env->height_map[grid_offset(env, y_1, x)];
         int height_2 = env->height_map[grid_offset(env, y_2, x)];
-        int next_pixel = env->height_map[grid_offset(env, y_0, x)];
-
 
         if (true_blade_height <= height_1 || true_blade_height <= height_2)
         {
             float height_diff_1 = height_1 - true_blade_height;
             float height_diff_2 = height_2 - true_blade_height;
 
-            env->height_map[heightgrid_offset(env, y_0, x)] += height_diff_1 + height_diff_2;
-            
+            float delta_soil = (height_diff_1 + height_diff_2)/3;
+
+            env->height_map[heightgrid_offset(env, y_deposit_1, x)] += delta_soil;
+            env->height_map[heightgrid_offset(env, y_deposit_2, x)] += delta_soil;
+            env->height_map[heightgrid_offset(env, y_deposit_3, x)] += delta_soil;
             env->height_map[heightgrid_offset(env, y_1, x)] = true_blade_height;
             env->height_map[heightgrid_offset(env, y_2, x)] = true_blade_height;
         }
@@ -562,7 +564,7 @@ void render_global(Renderer* renderer, Env* env) {
             int adr = grid_offset(env, r, c);
             int height = env->height_map[adr];
 
-            DrawRectangle(c*ts, r*ts, ts, ts, (Color){height*3, height*3, height*3, 255});
+            DrawRectangle(c*ts, r*ts, ts, ts, (Color){height*5, height*5, height*5, 255});
 
         }
     }
