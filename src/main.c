@@ -26,6 +26,7 @@ int main() {
     reset_room(env);
  
     Renderer* renderer = init_renderer(render_cell_size, width, height);
+    // Renderer* renderer_debug = init_renderer(render_cell_size, width, height);
 
     int t = 0;
     while (!WindowShouldClose()) {
@@ -47,6 +48,7 @@ int main() {
             reset_room(env);
         }
         render_global(renderer, env);
+        // render_debug(renderer_debug, env);
 
     }
     close_renderer(renderer);

@@ -91,7 +91,7 @@ struct Env
     float meters_per_pixel;
 
     unsigned char* grid;
-    unsigned char* height_map;
+    float* height_map;
     float* dx_l;
     float* dx_r;
     float* dy_u;
@@ -116,7 +116,7 @@ Env* init_grid(
     env->horizon = horizon;
 
     env->grid = (unsigned char*)calloc(width*height, sizeof(unsigned char));
-    env->height_map = (unsigned char*)calloc(width*height, sizeof(unsigned char));
+    env->height_map = (float*)calloc(width*height, sizeof(float));
     env->dx_l = (float*)calloc(width*height, sizeof(float));
     env->dx_r = (float*)calloc(width*height, sizeof(float));
     env->dy_u = (float*)calloc(width*height, sizeof(float));
@@ -186,10 +186,19 @@ void reset(Env* env, int seed)
     {
         for (int c = 0; c < env->width; c++)
         {
+            int adr = grid_offset(env, r, c);
+            env->height_map[adr] = 120;
+        }
+    }
+
+    for (int c = 0; c < env->width; c++)
+    {
+        for (int r = 0; r < env->height; r++)
+        {
             // sinusoidal
             int adr = grid_offset(env, r, c);
-            // env->height_map[adr] = 127 * sinf(0.07*c - 200) + 127;
-            env->height_map[adr] = 20;
+            env->height_map[adr] = 20 * cosf(0.07*r - 200) + 140;
+            // env->height_map[adr] = 50;
         }
     }
 
@@ -218,15 +227,15 @@ void gradient(Env* env)
         for (int c = 1; c < env->width-1; c++)
         {
             int adr = grid_offset(env, r, c);
-            int adr_x_l = grid_offset(env, r, c-1);
+            // int adr_x_l = grid_offset(env, r, c-1);
             int adr_x_r = grid_offset(env, r, c+1);
-            int adr_y_u = grid_offset(env, r-1, c);
+            // int adr_y_u = grid_offset(env, r-1, c);
             int adr_y_d = grid_offset(env, r+1, c);
 
-            env->dx_l[adr] = (env->height_map[adr_x_l] - env->height_map[adr]);
-            env->dx_r[adr] = (env->height_map[adr_x_r] - env->height_map[adr]);
-            env->dy_u[adr] = (env->height_map[adr_y_u] - env->height_map[adr]);
-            env->dy_d[adr] = (env->height_map[adr_y_d] - env->height_map[adr]);
+            // env->dx_l[adr] = env->height_map[adr_x_l] - env->height_map[adr];
+            env->dx_r[adr] = env->height_map[adr_x_r] - env->height_map[adr];
+            // env->dy_u[adr] = env->height_map[adr_y_u] - env->height_map[adr];
+            env->dy_d[adr] = env->height_map[adr_y_d] - env->height_map[adr];
         }
     }
 }
@@ -238,16 +247,18 @@ void erode(Env *env)
         for (int c = 1; c < env->width-2; c++)
         {
             int adr = grid_offset(env, r, c);
+            int adr_dx_l = grid_offset(env, r, c-1);
+            int adr_dy_u = grid_offset(env, r-1, c);
+
+            float dx_r = env->dx_r[adr];
+            float dx_l = -1*env->dx_r[adr_dx_l];
+            float dy_d = env->dy_d[adr];
+            float dy_u = -1*env->dy_d[adr_dy_u];
+
             int adr_x_l = grid_offset(env, r, c-1);
             int adr_x_r = grid_offset(env, r, c+1);
             int adr_y_u = grid_offset(env, r-1, c);
             int adr_y_d = grid_offset(env, r+1, c);
-
-
-            float dx_l = env->dx_l[adr];
-            float dx_r = env->dx_r[adr];
-            float dy_u = env->dy_u[adr];
-            float dy_d = env->dy_d[adr];
 
             float grads[4] = {dx_l, dx_r, dy_u, dy_d};
             int adrs[4] = {adr_x_l, adr_x_r, adr_y_u, adr_y_d};
@@ -264,10 +275,11 @@ void erode(Env *env)
                 }
             }
 
-            if (grads[index] < -5)
+            if (min < -2)
             {
-                env->height_map[adr] += 0.2 * grads[index];
-                env->height_map[adrs[index]] -= 0.2 * grads[index];
+                float diff = 0.5 * grads[index];
+                env->height_map[adr] += diff;
+                env->height_map[adrs[index]] -= diff;
             }
         }
     }
@@ -302,7 +314,7 @@ void calculate_neighborhood_height(Env* env)
 
             sum += env->height_map[grid_offset(env, current_coord.y, current_coord.x)];
 
-            // env->height_map[heightgrid_offset(env, current_coord.y, current_coord.x)] = 255;
+            // env->height_map[grid_offset(env, current_coord.y, current_coord.x)] = 40;
 
             count += 1;
         }
@@ -321,15 +333,23 @@ void blade_interaction(Env* env)
 
     for (int x_n = 0; x_n < agent->blade_width; x_n++)
     {
-        int direction = agent->vel / abs(agent->vel);
+        int direction;
+        if (agent->vel == 0)
+        {
+            direction = 0;
+        }
+        else
+        {
+            direction = agent->vel / abs(agent->vel);
+        }
 
         int x = agent->x + agent->blade_fore * sinf(1*agent->theta) + (x_n - agent->blade_width / 2) * cosf(1*agent->theta);
         int y_1 = agent->y + agent->blade_fore * cosf(1*agent->theta) - (x_n - agent->blade_width / 2) * sinf(1*agent->theta);
-        int y_2 = agent->y + (1*direction) + agent->blade_fore * cosf(1*agent->theta) - (x_n - agent->blade_width / 2) * sinf(1*agent->theta);
+        int y_2 = agent->y + (agent->blade_fore + 1*direction) * cosf(1*agent->theta) - (x_n - agent->blade_width / 2) * sinf(1*agent->theta);
 
-        int y_deposit_1 = agent->y + (2 * direction) + agent->blade_fore * cosf(1*agent->theta) - (x_n - agent->blade_width / 2) * sinf(1*agent->theta);
-        int y_deposit_2 = agent->y + (3 * direction) + agent->blade_fore * cosf(1*agent->theta) - (x_n - agent->blade_width / 2) * sinf(1*agent->theta);
-        int y_deposit_3 = agent->y + (4 * direction) + agent->blade_fore * cosf(1*agent->theta) - (x_n - agent->blade_width / 2) * sinf(1*agent->theta);
+        int y_deposit_1 = agent->y + (agent->blade_fore + 3 * direction) * cosf(1*agent->theta) - (x_n - agent->blade_width / 2) * sinf(1*agent->theta);
+        int y_deposit_2 = agent->y + (agent->blade_fore + 4 * direction) * cosf(1*agent->theta) - (x_n - agent->blade_width / 2) * sinf(1*agent->theta);
+        int y_deposit_3 = agent->y + (agent->blade_fore + 5 * direction) * cosf(1*agent->theta) - (x_n - agent->blade_width / 2) * sinf(1*agent->theta);
 
 
         int height_1 = env->height_map[grid_offset(env, y_1, x)];
@@ -342,11 +362,11 @@ void blade_interaction(Env* env)
 
             float delta_soil = (height_diff_1 + height_diff_2)/3;
 
-            env->height_map[heightgrid_offset(env, y_deposit_1, x)] += delta_soil;
-            env->height_map[heightgrid_offset(env, y_deposit_2, x)] += delta_soil;
-            env->height_map[heightgrid_offset(env, y_deposit_3, x)] += delta_soil;
-            env->height_map[heightgrid_offset(env, y_1, x)] = true_blade_height;
-            env->height_map[heightgrid_offset(env, y_2, x)] = true_blade_height;
+            env->height_map[grid_offset(env, y_deposit_1, x)] += delta_soil;
+            env->height_map[grid_offset(env, y_deposit_2, x)] += delta_soil;
+            env->height_map[grid_offset(env, y_deposit_3, x)] += delta_soil;
+            env->height_map[grid_offset(env, y_1, x)] = true_blade_height;
+            env->height_map[grid_offset(env, y_2, x)] = true_blade_height;
         }
         // printf("HIT! Shaved off %f\n", height - true_blade_height);
         printf("Blade interaction!\n\
@@ -493,8 +513,12 @@ bool step(Env* env)
         int dest_adr = grid_offset(env, dest_y, dest_x);
         int dest_tile = env->grid[dest_adr];
 
-        gradient(env);
-        erode(env);
+        // for (int i = 0; i < 4; i++)
+        // {
+            gradient(env);
+            erode(env);
+            // i++;
+        // }
     }
 
     return done;
@@ -548,6 +572,30 @@ void close_renderer(Renderer* renderer) {
     free(renderer);
 }
 
+void render_debug(Renderer* renderer, Env* env)
+{
+    if (IsKeyDown(KEY_ESCAPE)) {
+        exit(0);
+    }
+    BeginDrawing();
+    ClearBackground((Color){6, 24, 24, 255});
+
+    int ts = renderer->cell_size;
+    for (int r = 0; r < env->height; r++)
+    {
+        for (int c = 0; c < env->width; c++)
+        {
+            int adr = grid_offset(env, r, c);
+            int dx = env->dx_r[adr];
+            dx *= 5;
+            dx += 100;
+            DrawRectangle(c*ts, r*ts, ts, ts, (Color){dx, dx, dx, 255});
+
+        }
+    }
+    EndDrawing();
+}
+
 void render_global(Renderer* renderer, Env* env) {
     if (IsKeyDown(KEY_ESCAPE)) {
         exit(0);
@@ -564,7 +612,14 @@ void render_global(Renderer* renderer, Env* env) {
             int adr = grid_offset(env, r, c);
             int height = env->height_map[adr];
 
-            DrawRectangle(c*ts, r*ts, ts, ts, (Color){height*5, height*5, height*5, 255});
+            if (height > 255)
+            {
+                DrawRectangle(c*ts, r*ts, ts, ts, (Color){255, 0, 0, 255});
+            }
+            else
+            {
+                DrawRectangle(c*ts, r*ts, ts, ts, (Color){height, height, height, 255});
+            }
 
         }
     }
