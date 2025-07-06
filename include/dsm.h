@@ -193,7 +193,7 @@ void reset(Env* env, int seed)
 
     for (int c = 0; c < env->width; c++)
     {
-        for (int r = 0; r < env->height; r++)
+        for (int r = 210; r < 300; r++)
         {
             // sinusoidal
             int adr = grid_offset(env, r, c);
@@ -562,7 +562,7 @@ Renderer* init_renderer(int cell_size, int width, int height) {
     renderer->height = height;
 
     InitWindow(width*cell_size, height*cell_size, "PufferLib Ray Grid");
-    SetTargetFPS(100);
+    SetTargetFPS(300);
 
     return renderer;
 }
