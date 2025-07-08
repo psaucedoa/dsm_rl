@@ -98,6 +98,9 @@ struct Env
     float* dy_d;
     Agent* agents;
     int action;
+
+    float max;
+    double mean;
 };
 
 /**
@@ -216,28 +219,36 @@ void reset(Env* env, int seed)
         agent->blade_fore = 20;
         agent->max_soil = 10000;
         // env->grid[adr] = agent->color;
-        agent->theta = 0;
+        agent->theta = 110 * PI / 180;
     }
 }
 
 void gradient(Env* env)
 {
+    env->max = 0;
+    env->mean = 0;
+
     for (int r = 1; r < env->height-1; r++)
     {
         for (int c = 1; c < env->width-1; c++)
         {
             int adr = grid_offset(env, r, c);
-            // int adr_x_l = grid_offset(env, r, c-1);
             int adr_x_r = grid_offset(env, r, c+1);
-            // int adr_y_u = grid_offset(env, r-1, c);
             int adr_y_d = grid_offset(env, r+1, c);
 
-            // env->dx_l[adr] = env->height_map[adr_x_l] - env->height_map[adr];
             env->dx_r[adr] = env->height_map[adr_x_r] - env->height_map[adr];
-            // env->dy_u[adr] = env->height_map[adr_y_u] - env->height_map[adr];
             env->dy_d[adr] = env->height_map[adr_y_d] - env->height_map[adr];
+    
+            env->mean += env->height_map[adr];
+
+            if (env->height_map[adr] > env->max)
+            {
+                env->max = env->height_map[adr];
+            }
+
         }
     }
+    env->mean /= env->width * env->height;
 }
 
 void erode(Env *env)
@@ -331,8 +342,12 @@ void blade_interaction(Env* env)
     float true_blade_height = agent->avg_height + agent->blade_pos;
     int overflow;
 
-    for (int x_n = 0; x_n < agent->blade_width; x_n++)
+    int n[20] = {9, 10, 8, 11, 7, 12, 6, 13, 5, 14, 4, 15, 3, 16, 2, 17, 1, 18, 0, 19};
+
+    for (int i = 0; i < agent->blade_width; i++)
     {
+        int x_n = n[i];
+
         int direction;
         if (agent->vel == 0)
         {
@@ -343,30 +358,35 @@ void blade_interaction(Env* env)
             direction = agent->vel / abs(agent->vel);
         }
 
-        int x = agent->x + agent->blade_fore * sinf(1*agent->theta) + (x_n - agent->blade_width / 2) * cosf(1*agent->theta);
-        int y_1 = agent->y + agent->blade_fore * cosf(1*agent->theta) - (x_n - agent->blade_width / 2) * sinf(1*agent->theta);
+        int x_1 = agent->x + (agent->blade_fore)                 * sinf(1*agent->theta) + (x_n - agent->blade_width / 2) * cosf(1*agent->theta);
+        int x_2 = agent->x + (agent->blade_fore + 1 * direction) * sinf(1*agent->theta) + (x_n - agent->blade_width / 2) * cosf(1*agent->theta);
+
+        int y_1 = agent->y + agent->blade_fore                 * cosf(1*agent->theta) - (x_n - agent->blade_width / 2) * sinf(1*agent->theta);
         int y_2 = agent->y + (agent->blade_fore + 1*direction) * cosf(1*agent->theta) - (x_n - agent->blade_width / 2) * sinf(1*agent->theta);
 
         int y_deposit_1 = agent->y + (agent->blade_fore + 3 * direction) * cosf(1*agent->theta) - (x_n - agent->blade_width / 2) * sinf(1*agent->theta);
         int y_deposit_2 = agent->y + (agent->blade_fore + 4 * direction) * cosf(1*agent->theta) - (x_n - agent->blade_width / 2) * sinf(1*agent->theta);
         int y_deposit_3 = agent->y + (agent->blade_fore + 5 * direction) * cosf(1*agent->theta) - (x_n - agent->blade_width / 2) * sinf(1*agent->theta);
 
+        int x_deposit_1 = agent->x + (agent->blade_fore + 3 * direction) * sinf(1*agent->theta) + (x_n - agent->blade_width / 2) * cosf(1*agent->theta);
+        int x_deposit_2 = agent->x + (agent->blade_fore + 4 * direction) * sinf(1*agent->theta) + (x_n - agent->blade_width / 2) * cosf(1*agent->theta);
+        int x_deposit_3 = agent->x + (agent->blade_fore + 5 * direction) * sinf(1*agent->theta) + (x_n - agent->blade_width / 2) * cosf(1*agent->theta);
 
-        int height_1 = env->height_map[grid_offset(env, y_1, x)];
-        int height_2 = env->height_map[grid_offset(env, y_2, x)];
+        int height_1 = env->height_map[grid_offset(env, y_1, x_1)];
+        int height_2 = env->height_map[grid_offset(env, y_2, x_2)];
 
         if (true_blade_height <= height_1 || true_blade_height <= height_2)
         {
             float height_diff_1 = height_1 - true_blade_height;
             float height_diff_2 = height_2 - true_blade_height;
 
-            float delta_soil = (height_diff_1 + height_diff_2)/3;
+            float delta_soil = (height_diff_1 + height_diff_2) / 6;
 
-            env->height_map[grid_offset(env, y_deposit_1, x)] += delta_soil;
-            env->height_map[grid_offset(env, y_deposit_2, x)] += delta_soil;
-            env->height_map[grid_offset(env, y_deposit_3, x)] += delta_soil;
-            env->height_map[grid_offset(env, y_1, x)] = true_blade_height;
-            env->height_map[grid_offset(env, y_2, x)] = true_blade_height;
+            env->height_map[grid_offset(env, y_deposit_1, x_deposit_1)] += delta_soil * 3;
+            env->height_map[grid_offset(env, y_deposit_2, x_deposit_2)] += delta_soil * 2;
+            env->height_map[grid_offset(env, y_deposit_3, x_deposit_3)] += delta_soil;
+            env->height_map[grid_offset(env, y_1, x_1)] = true_blade_height;
+            env->height_map[grid_offset(env, y_2, x_2)] = true_blade_height;
         }
         // printf("HIT! Shaved off %f\n", height - true_blade_height);
         printf("Blade interaction!\n\
@@ -374,8 +394,10 @@ void blade_interaction(Env* env)
             \tWith height:\t%i \n\
             \tBlade height:\t%f \n\
             \tAvg height:\t%f\n\
-            \tAcc soil:\t%i\n",
-            x, y_1, height_1, true_blade_height, agent->avg_height, agent->accumulated_soil);
+            \tAcc soil:\t%i\n\
+            \tEnv Max:\t%f\n\
+            \tEnv Mean:\t%f\n",
+            x_1, y_1, height_1, true_blade_height, agent->avg_height, agent->accumulated_soil, env->max, env->mean);
     }
 
 }
