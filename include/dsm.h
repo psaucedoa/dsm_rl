@@ -334,7 +334,7 @@ void blade_interaction(Env* env)
         int direction;
         if (agent->vel == 0)
         {
-            direction = 0;
+            direction = 1;
         }
         else
         {
@@ -353,9 +353,9 @@ void blade_interaction(Env* env)
 
         yaw_1.y = 0;
         yaw_2.y = 1;
-        yaw_3.y = 3;
-        yaw_4.y = 4;
-        yaw_5.y = 5;
+        yaw_3.y = 2;
+        yaw_4.y = 3;
+        yaw_5.y = 4;
 
         float blade_yaw = agent->blade_yaw;
         if (direction < 0)
@@ -391,9 +391,9 @@ void blade_interaction(Env* env)
 
             float delta_soil = (height_diff_1 + height_diff_2) / 6;
 
-            env->height_map[grid_offset(env, deposit_1.y, deposit_1.x)] += delta_soil * 3;
+            env->height_map[grid_offset(env, deposit_1.y, deposit_1.x)] += delta_soil * 2;
             env->height_map[grid_offset(env, deposit_2.y, deposit_2.x)] += delta_soil * 2;
-            env->height_map[grid_offset(env, deposit_3.y, deposit_3.x)] += delta_soil;
+            env->height_map[grid_offset(env, deposit_3.y, deposit_3.x)] += delta_soil * 2;
             env->height_map[grid_offset(env, cut_1.y, cut_1.x)] = true_blade_height;
             env->height_map[grid_offset(env, cut_2.y, cut_2.x)] = true_blade_height;
         }

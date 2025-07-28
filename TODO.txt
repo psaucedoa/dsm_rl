@@ -17,5 +17,7 @@ bugs
 [x] blade yaw flips when moving backwards
     - issue with how I do blade interaction offsets depending on direction
     - kinda resolved by just flipping the angle when moving backwards lmao
-[]  soil explodes (again) when blade is yawed with some soil accumulated on the edge that's pulled back.
+[/]  soil explodes (again) when blade is yawed with some soil accumulated on the edge that's pulled back.
     - probably some math error where either the blade interactions or deposit locations are stacked on top of each other?
+    - yeah, and it was caused by `direction` being zero when there was no movement, removing the offsets of deposits and cuts
+    - kinda fixed? there's still some weirdness, like continuous vortex shedding almost, but it's not exploding so w/e
