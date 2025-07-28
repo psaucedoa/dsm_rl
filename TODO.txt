@@ -2,14 +2,18 @@
 [ ] Add in friction
     - Height of blade vs height of upcoming soil?
     - Height of blade vs 'Amount of Soil' (sum of soil in front of blade?)
+        - could do this by maybe taking the average amount of soil in front and above the blade?
 [x] Add tracking of absolute blade height
 [ ] Add delay in blade control
     - When avg terrain height updates, delay update to absolute blade height
     - When blade set height updates, delay update to absolute blade height
     - Maybe just buffer the updates from ANY source?
 [ ] Add in variable 'weight', randomized per soil
-[ ] Add yaw blade control
+[x] Add yaw blade control
 
 bugs
 [x] not propagating the correct numbers (some soil gets lost or magically appears)
     - Was actually problem with some transforms I was calculating. Sines and Cosines were wrong, basically.
+[x] blade yaw flips when moving backwards
+    - issue with how I do blade interaction offsets depending on direction
+    - kinda resolved by just flipping the angle when moving backwards lmao

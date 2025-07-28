@@ -346,22 +346,28 @@ void blade_interaction(Env* env)
         Vector2 cut_1, cut_2, deposit_1, deposit_2, deposit_3, yaw_1, yaw_2, yaw_3, yaw_4, yaw_5;
 
         yaw_1.x = x_n;
-        yaw_2.x = x_n;    
-        yaw_3.x = x_n;    
-        yaw_4.x = x_n;    
+        yaw_2.x = x_n;
+        yaw_3.x = x_n;
+        yaw_4.x = x_n;
         yaw_5.x = x_n;
-        
+
         yaw_1.y = 0;
         yaw_2.y = 1;
         yaw_3.y = 3;
         yaw_4.y = 4;
         yaw_5.y = 5;
 
-        yaw_1 = rotate(yaw_1, agent->blade_yaw);
-        yaw_2 = rotate(yaw_2, agent->blade_yaw);
-        yaw_3 = rotate(yaw_3, agent->blade_yaw);
-        yaw_4 = rotate(yaw_4, agent->blade_yaw);
-        yaw_5 = rotate(yaw_5, agent->blade_yaw);
+        float blade_yaw = agent->blade_yaw;
+        if (direction < 0)
+        {
+            blade_yaw *= -1;
+        }
+
+        yaw_1 = rotate(yaw_1, blade_yaw);
+        yaw_2 = rotate(yaw_2, blade_yaw);
+        yaw_3 = rotate(yaw_3, blade_yaw);
+        yaw_4 = rotate(yaw_4, blade_yaw);
+        yaw_5 = rotate(yaw_5, blade_yaw);
 
         cut_1.x = agent->x + (agent->blade_fore + yaw_1.y * direction) * sinf(1*theta) + (yaw_1.x) * cosf(1*theta);
         cut_1.y = agent->y + (agent->blade_fore + yaw_1.y * direction) * cosf(1*theta) - (yaw_1.x) * sinf(1*theta);
