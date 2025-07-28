@@ -19,7 +19,7 @@ int main() {
     int vision = 5;
     bool discretize = true;
 
-    int render_cell_size = 1;
+    int render_cell_size = 4;
     int seed = 42;
 
     Env* env = alloc_room_env();
@@ -32,12 +32,14 @@ int main() {
     while (!WindowShouldClose()) {
         // User can take control of the first agent
         env->action = PASS;
-        if (IsKeyDown(KEY_UP)    || IsKeyDown(KEY_W)) env->action = SPEED_UP;
-        if (IsKeyDown(KEY_DOWN)  || IsKeyDown(KEY_S)) env->action = SPEED_DOWN;
-        if (IsKeyDown(KEY_LEFT)  || IsKeyDown(KEY_A)) env->action = LEFT;
-        if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) env->action = RIGHT;
-        if (IsKeyDown(KEY_Q)) env->action = BLADE_UP;
-        if (IsKeyDown(KEY_E)) env->action = BLADE_DOWN;
+        if (IsKeyDown(KEY_W)) env->action = SPEED_UP;
+        if (IsKeyDown(KEY_S)) env->action = SPEED_DOWN;
+        if (IsKeyDown(KEY_A)) env->action = LEFT;
+        if (IsKeyDown(KEY_D)) env->action = RIGHT;
+        if (IsKeyDown(KEY_Q)) env->action = YAW_LEFT;
+        if (IsKeyDown(KEY_E)) env->action = YAW_RIGHT;
+        if (IsKeyDown(KEY_DOWN)) env->action = BLADE_DOWN;
+        if (IsKeyDown(KEY_UP)) env->action = BLADE_UP;
         if (IsKeyDown(KEY_SPACE)) env->action = CONTINUE;
         if (IsKeyDown(KEY_R)) reset_room(env);
 

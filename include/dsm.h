@@ -11,9 +11,12 @@
 #define SPEED_DOWN 2
 #define LEFT 3
 #define RIGHT 4
-#define BLADE_UP 5
-#define BLADE_DOWN 6
-#define CONTINUE 7
+#define YAW_LEFT 5
+#define YAW_RIGHT 6
+
+#define BLADE_UP 7
+#define BLADE_DOWN 8
+#define CONTINUE 9
 
 #define EMPTY 0
 #define WALL 1
@@ -22,27 +25,10 @@
 #define REWARD 4
 #define OBJECT 5
 #define AGENT_1 6
-#define AGENT_2 7
-#define AGENT_3 8
-#define AGENT_4 9
-#define AGENT_5 10
-#define AGENT_6 11
-#define AGENT_7 12
-#define AGENT_8 13
-
-#define NUM_AGENTS 8
 
 #define TIMESTEP 0.1
 
 // ---------------------------------------------------------------
-
-int rand_color() {
-    return AGENT_1 + rand()%(AGENT_4 - AGENT_1 + 1);
-}
-
-int is_agent(int tile) {
-    return tile >= AGENT_1 && tile <= AGENT_8;
-}
 
 Vector2 rotate(Vector2 vector, float theta)
 {
@@ -68,14 +54,11 @@ struct Agent
     float blade_width;
     float blade_thick;
     int blade_fore;
-
-    int accumulated_soil;
-    int max_soil;
+    float blade_yaw;
+    float blade_height;
 
     float spawn_y;
     float spawn_x;
-
-    int color;
 };
 
 typedef struct Env Env;
@@ -190,17 +173,20 @@ void reset(Env* env, int seed)
         for (int c = 0; c < env->width; c++)
         {
             int adr = grid_offset(env, r, c);
-            env->height_map[adr] = 120;
+            env->height_map[adr] = 20;
         }
     }
 
-    for (int c = 0; c < env->width; c++)
+    for (int c = 250; c < 300; c++)
     {
-        for (int r = 210; r < 300; r++)
+        for (int r = 250; r < 300; r++)
         {
             // sinusoidal
             int adr = grid_offset(env, r, c);
-            env->height_map[adr] = 20 * cosf(0.07*r - 200) + 140;
+            int x = 0.1 * (c - 275);
+            int y = 0.1 * (r - 275);
+
+            env->height_map[adr] = -1*(x * x + y * y) + 30;
             // env->height_map[adr] = 50;
         }
     }
@@ -211,14 +197,11 @@ void reset(Env* env, int seed)
         Agent* agent = &env->agents[i];
         int adr = grid_offset(env, agent->spawn_y, agent->spawn_x);
         // assert(env->grid[adr] == EMPTY);
-        // assert(is_agent(agent->color));
         agent->y = agent->spawn_y;
         agent->x = agent->spawn_x;
         agent->blade_width = 20;
         agent->blade_thick = 2;
         agent->blade_fore = 20;
-        agent->max_soil = 10000;
-        // env->grid[adr] = agent->color;
         agent->theta = 110 * PI / 180;
     }
 }
@@ -342,7 +325,7 @@ void blade_interaction(Env* env)
     float true_blade_height = agent->avg_height + agent->blade_pos;
     int overflow;
 
-    int n[20] = {9, 10, 8, 11, 7, 12, 6, 13, 5, 14, 4, 15, 3, 16, 2, 17, 1, 18, 0, 19};
+    int n[20] = {-1, 0, -2, 1, -3, 2, -4, 3, -5, 4, -6, 5, -7, 6, -8, 7, -9, 8, -10, 9};
 
     for (int i = 0; i < agent->blade_width; i++)
     {
@@ -358,22 +341,42 @@ void blade_interaction(Env* env)
             direction = agent->vel / abs(agent->vel);
         }
 
-        int x_1 = agent->x + (agent->blade_fore)                 * sinf(1*agent->theta) + (x_n - agent->blade_width / 2) * cosf(1*agent->theta);
-        int x_2 = agent->x + (agent->blade_fore + 1 * direction) * sinf(1*agent->theta) + (x_n - agent->blade_width / 2) * cosf(1*agent->theta);
+        float theta = agent->theta;
 
-        int y_1 = agent->y + agent->blade_fore                 * cosf(1*agent->theta) - (x_n - agent->blade_width / 2) * sinf(1*agent->theta);
-        int y_2 = agent->y + (agent->blade_fore + 1*direction) * cosf(1*agent->theta) - (x_n - agent->blade_width / 2) * sinf(1*agent->theta);
+        Vector2 cut_1, cut_2, deposit_1, deposit_2, deposit_3, yaw_1, yaw_2, yaw_3, yaw_4, yaw_5;
 
-        int y_deposit_1 = agent->y + (agent->blade_fore + 3 * direction) * cosf(1*agent->theta) - (x_n - agent->blade_width / 2) * sinf(1*agent->theta);
-        int y_deposit_2 = agent->y + (agent->blade_fore + 4 * direction) * cosf(1*agent->theta) - (x_n - agent->blade_width / 2) * sinf(1*agent->theta);
-        int y_deposit_3 = agent->y + (agent->blade_fore + 5 * direction) * cosf(1*agent->theta) - (x_n - agent->blade_width / 2) * sinf(1*agent->theta);
+        yaw_1.x = x_n;
+        yaw_2.x = x_n;    
+        yaw_3.x = x_n;    
+        yaw_4.x = x_n;    
+        yaw_5.x = x_n;
+        
+        yaw_1.y = 0;
+        yaw_2.y = 1;
+        yaw_3.y = 3;
+        yaw_4.y = 4;
+        yaw_5.y = 5;
 
-        int x_deposit_1 = agent->x + (agent->blade_fore + 3 * direction) * sinf(1*agent->theta) + (x_n - agent->blade_width / 2) * cosf(1*agent->theta);
-        int x_deposit_2 = agent->x + (agent->blade_fore + 4 * direction) * sinf(1*agent->theta) + (x_n - agent->blade_width / 2) * cosf(1*agent->theta);
-        int x_deposit_3 = agent->x + (agent->blade_fore + 5 * direction) * sinf(1*agent->theta) + (x_n - agent->blade_width / 2) * cosf(1*agent->theta);
+        yaw_1 = rotate(yaw_1, agent->blade_yaw);
+        yaw_2 = rotate(yaw_2, agent->blade_yaw);
+        yaw_3 = rotate(yaw_3, agent->blade_yaw);
+        yaw_4 = rotate(yaw_4, agent->blade_yaw);
+        yaw_5 = rotate(yaw_5, agent->blade_yaw);
 
-        int height_1 = env->height_map[grid_offset(env, y_1, x_1)];
-        int height_2 = env->height_map[grid_offset(env, y_2, x_2)];
+        cut_1.x = agent->x + (agent->blade_fore + yaw_1.y * direction) * sinf(1*theta) + (yaw_1.x) * cosf(1*theta);
+        cut_1.y = agent->y + (agent->blade_fore + yaw_1.y * direction) * cosf(1*theta) - (yaw_1.x) * sinf(1*theta);
+        cut_2.x = agent->x + (agent->blade_fore + yaw_2.y * direction) * sinf(1*theta) + (yaw_2.x) * cosf(1*theta);
+        cut_2.y = agent->y + (agent->blade_fore + yaw_2.y * direction) * cosf(1*theta) - (yaw_2.x) * sinf(1*theta);
+
+        deposit_1.x = agent->x + (agent->blade_fore + yaw_3.y * direction) * sinf(1*theta) + (yaw_3.x) * cosf(1*theta);
+        deposit_1.y = agent->y + (agent->blade_fore + yaw_3.y * direction) * cosf(1*theta) - (yaw_3.x) * sinf(1*theta);
+        deposit_2.x = agent->x + (agent->blade_fore + yaw_4.y * direction) * sinf(1*theta) + (yaw_4.x) * cosf(1*theta);
+        deposit_2.y = agent->y + (agent->blade_fore + yaw_4.y * direction) * cosf(1*theta) - (yaw_4.x) * sinf(1*theta);
+        deposit_3.x = agent->x + (agent->blade_fore + yaw_5.y * direction) * sinf(1*theta) + (yaw_5.x) * cosf(1*theta);
+        deposit_3.y = agent->y + (agent->blade_fore + yaw_5.y * direction) * cosf(1*theta) - (yaw_5.x) * sinf(1*theta);
+
+        int height_1 = env->height_map[grid_offset(env, cut_1.y, cut_1.x)];
+        int height_2 = env->height_map[grid_offset(env, cut_2.y, cut_2.x)];
 
         if (true_blade_height <= height_1 || true_blade_height <= height_2)
         {
@@ -382,22 +385,22 @@ void blade_interaction(Env* env)
 
             float delta_soil = (height_diff_1 + height_diff_2) / 6;
 
-            env->height_map[grid_offset(env, y_deposit_1, x_deposit_1)] += delta_soil * 3;
-            env->height_map[grid_offset(env, y_deposit_2, x_deposit_2)] += delta_soil * 2;
-            env->height_map[grid_offset(env, y_deposit_3, x_deposit_3)] += delta_soil;
-            env->height_map[grid_offset(env, y_1, x_1)] = true_blade_height;
-            env->height_map[grid_offset(env, y_2, x_2)] = true_blade_height;
+            env->height_map[grid_offset(env, deposit_1.y, deposit_1.x)] += delta_soil * 3;
+            env->height_map[grid_offset(env, deposit_2.y, deposit_2.x)] += delta_soil * 2;
+            env->height_map[grid_offset(env, deposit_3.y, deposit_3.x)] += delta_soil;
+            env->height_map[grid_offset(env, cut_1.y, cut_1.x)] = true_blade_height;
+            env->height_map[grid_offset(env, cut_2.y, cut_2.x)] = true_blade_height;
         }
         // printf("HIT! Shaved off %f\n", height - true_blade_height);
         printf("Blade interaction!\n\
             \tLocation:\t(%i, %i) \n\
+            \tAgent Theta:\t%f \n\
             \tWith height:\t%i \n\
             \tBlade height:\t%f \n\
             \tAvg height:\t%f\n\
-            \tAcc soil:\t%i\n\
             \tEnv Max:\t%f\n\
             \tEnv Mean:\t%f\n",
-            x_1, y_1, height_1, true_blade_height, agent->avg_height, agent->accumulated_soil, env->max, env->mean);
+            cut_1.x, cut_1.y, agent->theta, height_1, true_blade_height, agent->avg_height, env->max, env->mean);
     }
 
 }
@@ -471,6 +474,28 @@ bool step(Env* env)
             if (agent->theta_dot < -1)
             {
                 agent->theta_dot = -1;
+            }
+        }
+
+        else if (action == YAW_LEFT)
+        {
+            Agent* agent = &env->agents[agent_idx];
+            agent->blade_yaw += 0.01;
+
+            if (agent->blade_yaw > 0.5)
+            {
+                agent->blade_yaw = 0.5;
+            }
+        }
+
+        else if (action == YAW_RIGHT)
+        {
+            Agent* agent = &env->agents[agent_idx];
+            agent->blade_yaw -= 0.01;
+
+            if (agent->blade_yaw < -0.5)
+            {
+                agent->blade_yaw = -0.5;
             }
         }
 
@@ -632,7 +657,7 @@ void render_global(Renderer* renderer, Env* env) {
         for (int c = 0; c < env->width; c++)
         {
             int adr = grid_offset(env, r, c);
-            int height = env->height_map[adr];
+            int height = env->height_map[adr] * 3;
 
             if (height > 255)
             {
@@ -647,27 +672,25 @@ void render_global(Renderer* renderer, Env* env) {
     }
 
     Agent* agent = &env->agents[0];
-    float deg = agent->theta * 180 / PI;
+    float deg = (agent->theta) * 180 / PI;
 
     Rectangle blade;
-    blade.x = agent->x; // - agent->blade_width / 2;
-    blade.y = agent->y; // - agent->blade_thick / 2;
-    blade.height = agent->blade_thick;
-    blade.width = agent->blade_width;
+    blade.x      = agent->x * renderer->cell_size; // - agent->blade_width / 2;
+    blade.y      = agent->y * renderer->cell_size; // - agent->blade_thick / 2;
+    blade.height = agent->blade_thick * renderer->cell_size;
+    blade.width  = agent->blade_width * renderer->cell_size;
 
-    // draw blade
-    // DrawRectangle(agent->x, agent->y, agent->blade_width, agent->blade_thick, (Color){255, 255, 255, 255});
     DrawRectanglePro(
         blade,
-        (Vector2){10, -1*agent->blade_fore},
+        (Vector2){10 * renderer->cell_size, -1*agent->blade_fore * renderer->cell_size},
         -1*deg,
         YELLOW
     );
 
     DrawCircle(
-        agent->x,
-        agent->y,
-        5,
+        agent->x * renderer->cell_size,
+        agent->y * renderer->cell_size,
+        5 * renderer->cell_size,
         RED
     );
 
@@ -697,7 +720,6 @@ Env* alloc_room_env()
     env->cell_size = 1;
     env->agents[0].spawn_y = 150;
     env->agents[0].spawn_x = 150;
-    env->agents[0].color = AGENT_1;
     return env;
 }
 
