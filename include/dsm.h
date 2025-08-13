@@ -64,6 +64,11 @@ struct Agent
 typedef struct Env Env;
 struct Env
 {
+  float* observations;
+  float* actions;
+  float* rewards;
+  float* dones;
+
   int width;
   int height;
   int num_agents;  // potential for multi-agent stuff
@@ -124,7 +129,7 @@ Env* allocate_grid(
   unsigned int* actions = (unsigned int*)calloc(num_agents, sizeof(unsigned int));
   float* rewards = (float*)calloc(num_agents, sizeof(float));
   float* dones = (float*)calloc(num_agents, sizeof(float));
-  
+
   return init_grid(observations, actions, rewards, dones,
   width, height, num_agents, horizon, vision, speed, discretize);
 }
@@ -152,7 +157,7 @@ void free_allocated_grid(Env* env)
  * Maps a 2d location to 1d array
  */
 int grid_offset(Env* env, int y, int x)
-{  
+{
   return y*env->width + x;
 }
 
@@ -185,7 +190,7 @@ void reset(Env* env, int seed)
       int adr = grid_offset(env, r, c);
       int x = 0.1 * (c - 275);
       int y = 0.1 * (r - 275);
-    
+
       env->height_map[adr] = -1*(x * x + y * y) + 30;
       // env->height_map[adr] = 50;
     }
@@ -218,17 +223,17 @@ void gradient(Env* env)
       int adr = grid_offset(env, r, c);
       int adr_x_r = grid_offset(env, r, c+1);
       int adr_y_d = grid_offset(env, r+1, c);
-    
+
       env->dx_r[adr] = env->height_map[adr_x_r] - env->height_map[adr];
       env->dy_d[adr] = env->height_map[adr_y_d] - env->height_map[adr];
-      
+
       env->mean += env->height_map[adr];
-    
+
       if (env->height_map[adr] > env->max)
       {
         env->max = env->height_map[adr];
       }
-  
+
     }
   }
   env->mean /= env->width * env->height;
@@ -243,23 +248,23 @@ void erode(Env *env)
       int adr = grid_offset(env, r, c);
       int adr_dx_l = grid_offset(env, r, c-1);
       int adr_dy_u = grid_offset(env, r-1, c);
-    
+
       float dx_r = env->dx_r[adr];
       float dx_l = -1*env->dx_r[adr_dx_l];
       float dy_d = env->dy_d[adr];
       float dy_u = -1*env->dy_d[adr_dy_u];
-    
+
       int adr_x_l = grid_offset(env, r, c-1);
       int adr_x_r = grid_offset(env, r, c+1);
       int adr_y_u = grid_offset(env, r-1, c);
       int adr_y_d = grid_offset(env, r+1, c);
-    
+
       float grads[4] = {dx_l, dx_r, dy_u, dy_d};
       int adrs[4] = {adr_x_l, adr_x_r, adr_y_u, adr_y_d};
-    
+
       int index = 0;
       float min = 0;
-    
+
       for (int i = 0; i < 4; i++)
       {
         if (grads[i] < min)
@@ -268,7 +273,7 @@ void erode(Env *env)
           index = i;
         }
       }
-    
+
       if (min < -2)
       {
         float diff = 0.5 * grads[index];
@@ -305,11 +310,11 @@ void calculate_neighborhood_height(Env* env)
       Vector2 current_pixel = {x_n - neighborhood_width / 2, y_n - neighborhood_len / 2};
       Vector2 current_pixel_rotated = rotate(current_pixel, env->agents[0].theta);
       Vector2 current_coord = {top_left.x + current_pixel_rotated.x, top_left.y + current_pixel_rotated.y };
-    
+
       sum += env->height_map[grid_offset(env, current_coord.y, current_coord.x)];
-    
+
       // env->height_map[grid_offset(env, current_coord.y, current_coord.x)] = 40;
-    
+
       count += 1;
     }
   }
@@ -330,7 +335,7 @@ void blade_interaction(Env* env)
   for (int i = 0; i < agent->blade_width; i++)
   {
     int x_n = n[i];
-  
+
     int direction;
     if (agent->vel == 0)
     {
@@ -340,57 +345,57 @@ void blade_interaction(Env* env)
     {
       direction = agent->vel / abs(agent->vel);
     }
-  
+
     float theta = agent->theta;
-  
+
     Vector2 cut_1, cut_2, deposit_1, deposit_2, deposit_3, yaw_1, yaw_2, yaw_3, yaw_4, yaw_5;
-  
+
     yaw_1.x = x_n;
     yaw_2.x = x_n;
     yaw_3.x = x_n;
     yaw_4.x = x_n;
     yaw_5.x = x_n;
-  
+
     yaw_1.y = 0;
     yaw_2.y = 1;
     yaw_3.y = 2;
     yaw_4.y = 3;
     yaw_5.y = 4;
-  
+
     float blade_yaw = agent->blade_yaw;
     if (direction < 0)
     {
       blade_yaw *= -1;
     }
-  
+
     yaw_1 = rotate(yaw_1, blade_yaw);
     yaw_2 = rotate(yaw_2, blade_yaw);
     yaw_3 = rotate(yaw_3, blade_yaw);
     yaw_4 = rotate(yaw_4, blade_yaw);
     yaw_5 = rotate(yaw_5, blade_yaw);
-  
+
     cut_1.x = agent->x + (agent->blade_fore + yaw_1.y * direction) * sinf(1*theta) + (yaw_1.x) * cosf(1*theta);
     cut_1.y = agent->y + (agent->blade_fore + yaw_1.y * direction) * cosf(1*theta) - (yaw_1.x) * sinf(1*theta);
     cut_2.x = agent->x + (agent->blade_fore + yaw_2.y * direction) * sinf(1*theta) + (yaw_2.x) * cosf(1*theta);
     cut_2.y = agent->y + (agent->blade_fore + yaw_2.y * direction) * cosf(1*theta) - (yaw_2.x) * sinf(1*theta);
-  
+
     deposit_1.x = agent->x + (agent->blade_fore + yaw_3.y * direction) * sinf(1*theta) + (yaw_3.x) * cosf(1*theta);
     deposit_1.y = agent->y + (agent->blade_fore + yaw_3.y * direction) * cosf(1*theta) - (yaw_3.x) * sinf(1*theta);
     deposit_2.x = agent->x + (agent->blade_fore + yaw_4.y * direction) * sinf(1*theta) + (yaw_4.x) * cosf(1*theta);
     deposit_2.y = agent->y + (agent->blade_fore + yaw_4.y * direction) * cosf(1*theta) - (yaw_4.x) * sinf(1*theta);
     deposit_3.x = agent->x + (agent->blade_fore + yaw_5.y * direction) * sinf(1*theta) + (yaw_5.x) * cosf(1*theta);
     deposit_3.y = agent->y + (agent->blade_fore + yaw_5.y * direction) * cosf(1*theta) - (yaw_5.x) * sinf(1*theta);
-  
+
     int height_1 = env->height_map[grid_offset(env, cut_1.y, cut_1.x)];
     int height_2 = env->height_map[grid_offset(env, cut_2.y, cut_2.x)];
-  
+
     if (true_blade_height <= height_1 || true_blade_height <= height_2)
     {
       float height_diff_1 = height_1 - true_blade_height;
       float height_diff_2 = height_2 - true_blade_height;
-    
+
       float delta_soil = (height_diff_1 + height_diff_2) / 6;
-    
+
       env->height_map[grid_offset(env, deposit_1.y, deposit_1.x)] += delta_soil * 2;
       env->height_map[grid_offset(env, deposit_2.y, deposit_2.x)] += delta_soil * 2;
       env->height_map[grid_offset(env, deposit_3.y, deposit_3.x)] += delta_soil * 2;
@@ -416,21 +421,12 @@ void blade_interaction(Env* env)
  */
 bool step(Env* env)
 {
-  // TODO: Handle discrete vs continuous
-  /*
-  if self.discretize:
-  actions_discrete = np_actions
-  else:
-  actions_continuous = np_actions
-  */
   bool done = false;
   for (int agent_idx = 0; agent_idx < env->num_agents; agent_idx++)
   {
-    // Discrete case only
-    // int atn = env->actions[agent_idx];
     int action = env->action;
     float vel = 0;
-  
+
     if (action == PASS)
     {
       continue;
@@ -439,29 +435,29 @@ bool step(Env* env)
     {
       // continue;
     }
-  
+
     else if (action == SPEED_UP)
     {
       Agent* agent = &env->agents[agent_idx];
       agent->vel += 1;
-    
+
       if (agent->vel > 10)
       {
         agent->vel = 10;
       }
     }
-    
+
     else if (action == SPEED_DOWN)
     {
       Agent* agent = &env->agents[agent_idx];
       agent->vel -= 1;
-      
+
       if (agent->vel < -10)
       {
         agent->vel = -10;
       }
     }
-    
+
     else if (action == LEFT)
     {
       Agent* agent = &env->agents[agent_idx];
@@ -471,70 +467,70 @@ bool step(Env* env)
         agent->theta_dot = 1;
       }
     }
-  
+
     else if (action == RIGHT)
     {
       Agent* agent = &env->agents[agent_idx];
       agent->theta_dot -= 0.1;
-    
+
       if (agent->theta_dot < -1)
       {
         agent->theta_dot = -1;
       }
     }
-  
+
     else if (action == YAW_LEFT)
     {
       Agent* agent = &env->agents[agent_idx];
       agent->blade_yaw += 0.01;
-    
+
       if (agent->blade_yaw > 0.5)
       {
         agent->blade_yaw = 0.5;
       }
     }
-  
+
     else if (action == YAW_RIGHT)
     {
       Agent* agent = &env->agents[agent_idx];
       agent->blade_yaw -= 0.01;
-    
+
       if (agent->blade_yaw < -0.5)
       {
         agent->blade_yaw = -0.5;
       }
     }
-  
+
     else if (action == BLADE_UP)
     {
       Agent* agent = &env->agents[agent_idx];
       agent->blade_pos += 1;
-    
+
       if (agent->blade_pos > 15)
       {
         agent->blade_pos = 15;
       }
     }
-  
+
     else if (action == BLADE_DOWN)
     {
       Agent* agent = &env->agents[agent_idx];
       agent->blade_pos -= 1;
-    
+
       if (agent->blade_pos < -10)
       {
         agent->blade_pos = -10;
       }
-  
+
     }
-  
+
     else
     {
       printf("Invalid action: %i\n", action);
       exit(1);
     }
-  
-  
+
+
     Agent* agent = &env->agents[agent_idx];
     agent->theta += agent->theta_dot * TIMESTEP;
     if (agent->theta > 2*PI)
@@ -545,17 +541,17 @@ bool step(Env* env)
     {
       agent->theta += 2*PI;
     }
-  
+
     float y = agent->y;
     float x = agent->x;
-  
+
     // we have the speed and heading (theta)
     // 0 is straight up, 90 is left...
     // also, this might be costly?
-  
+
     float dest_y = TIMESTEP * agent->vel * cosf(agent->theta) + y;
     float dest_x = TIMESTEP * agent->vel * sinf(agent->theta) + x;
-  
+
     if (dest_y > env->height - 50)
     {
       dest_y = env->height - 50;
@@ -568,8 +564,8 @@ bool step(Env* env)
     {
       agent->y = dest_y;
     }
-  
-  
+
+
     if (dest_x > env->width - 50)
     {
       dest_x = env->width - 50;
@@ -582,14 +578,14 @@ bool step(Env* env)
     {
       agent->x = dest_x;
     }
-  
+
     calculate_neighborhood_height(env);
     blade_interaction(env);
-  
+
     int adr = grid_offset(env, y, x);
     int dest_adr = grid_offset(env, dest_y, dest_x);
     int dest_tile = env->grid[dest_adr];
-  
+
     gradient(env);
     erode(env);
   }
@@ -597,7 +593,7 @@ bool step(Env* env)
   return done;
 }
 
-// Raylib client
+// Raylib client -------------------------------------------------------------//
 Color COLORS[] = {
   (Color){6, 24, 24, 255},
   (Color){0, 0, 255, 255},
@@ -636,7 +632,7 @@ Renderer* init_renderer(int cell_size, int width, int height)
   renderer->height = height;
 
   InitWindow(width*cell_size, height*cell_size, "PufferLib Ray Grid");
-  SetTargetFPS(300);
+  SetTargetFPS(10);
 
   return renderer;
 }
@@ -666,7 +662,7 @@ void render_debug(Renderer* renderer, Env* env)
       dx *= 5;
       dx += 100;
       DrawRectangle(c*ts, r*ts, ts, ts, (Color){dx, dx, dx, 255});
-  
+
     }
   }
   EndDrawing();
@@ -689,7 +685,7 @@ void render_global(Renderer* renderer, Env* env)
     {
       int adr = grid_offset(env, r, c);
       int height = env->height_map[adr] * 3;
-    
+
       if (height > 255)
       {
         DrawRectangle(c*ts, r*ts, ts, ts, (Color){255, 0, 0, 255});
@@ -698,7 +694,7 @@ void render_global(Renderer* renderer, Env* env)
       {
         DrawRectangle(c*ts, r*ts, ts, ts, (Color){height, height, height, 255});
       }
-    
+
     }
   }
 
@@ -747,7 +743,7 @@ Env* alloc_room_env()
 
   Env* env = allocate_grid(width+2*vision, height+2*vision, num_agents, horizon,
   vision, agent_speed, discretize);
-  
+
   env->cell_size = 1;
   env->agents[0].spawn_y = 150;
   env->agents[0].spawn_x = 150;
